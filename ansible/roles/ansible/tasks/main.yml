@@ -1,27 +1,46 @@
 # ansible/roles/ansible/tasks/main.yml
 ---
     # ========== ANSIBLE ==========
-# 2. Убеждаемся, что есть pip
-- name: Install python3-pip
+# Установка Python нужной версии
+- name: "Install Python {{ target_python_version }} and Pip"
   ansible.builtin.dnf:
-    name: python3-pip
+    name:
+      - "{{ python_package_name }}"
+      - "{{ python_pip_package_name }}"
     state: present
 
-# Установка Python библиотек
-- name: Install Python AWS libraries (boto3, botocore)
+# Очистка старой версии (опционально, но полезно для чистоты)
+- name: Remove old Ansible installed via system default pip
+  ansible.builtin.pip:
+    name: ansible
+    state: absent
+    executable: pip3
+  ignore_errors: true # Игнорируем, если там ничего не было
+
+# Установка библиотек AWS в НУЖНЫЙ Python
+- name: "Install Python AWS libraries for Python {{ target_python_version }}"
   ansible.builtin.pip:
     name:
       - boto3
       - botocore
-    executable: pip3
+    executable: "{{ pip_executable }}" # Используем pip3.11
     state: present
 
-# 3. Ставим свежайший Ansible через pip
-- name: Install latest Ansible via pip
+# Установка свежего Ansible
+- name: "Install Ansible (>= {{ ansible_pypi_version }}) via {{ pip_executable }}"
   ansible.builtin.pip:
-    name: ansible
-    state: latest
-    executable: pip3
+    name: "ansible>={{ ansible_pypi_version }}"
+    state: present
+    executable: "{{ pip_executable }}" # Используем pip3.11
+
+# Создание симлинка, чтобы команда 'ansible' работала без указания полного пути
+# pip3.11 на Amazon Linux обычно ставит бинарники в /usr/local/bin
+- name: Ensure ansible symlink exists in /usr/bin
+  ansible.builtin.file:
+    src: /usr/local/bin/ansible
+    dest: /usr/bin/ansible
+    state: link
+    force: yes
 
 # Установка коллекций для jenkins
 - name: Install Ansible collections for jenkins user

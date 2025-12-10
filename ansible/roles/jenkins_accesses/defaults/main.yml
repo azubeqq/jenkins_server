@@ -8,4 +8,4 @@ jenkins_private_key_path: "{{ jenkins_ssh_dir }}/{{ jenkins_ssh_key_name }}"
 jenkins_public_key_path: "{{ jenkins_private_key_path }}.pub"
 
 dockerhub_username: "azubeq"
-dockerhub_token: "111-dckr111_pat_T2DlJ37ww6Er9ZgTcVdAaF-ce2s111"
+dockerhub_token: "dckr_pat_g57t8  QWAOn3Y rn4KXS BD2i ZYl0c"

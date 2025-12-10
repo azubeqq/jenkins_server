@@ -1,0 +1,53 @@
+---
+
+- name: Install Jenkins plugins
+  hosts: role_jenkins
+  become: true
+
+  vars:
+    jenkins_admin_password: "admin"
+    jenkins_username: admin
+    jenkins_url: "http://{{ ansible_host }}:8080"
+    jenkins_plugins:
+  # --- Core & UI ---
+#      - workflow-aggregator       # Сам Пайплайн
+#      - pipeline-stage-view       # Визуализация этапов
+#      - git                       # Гит
+#      - timestamper               # Время в логах (удобно)
+#      - credentials
+#      - credentials-binding
+      - ssh-agent
+      - ssh-credentials           # Обычно ставится как зависимость, но лучше указать явно
+      - plain-credentials
+      - docker-workflow           # Дает переменную 'docker' в пайплайне
+      - ansible                   # Интеграция с Ansible
+      - terraform               # Можно поставить, но часто проще вызывать просто 'sh terraform'
+      - github
+      - docker-plugin
+      - build-timeout              # Таймауты для builds
+      - ws-cleanup                 # Очистка workspace
+      - ansicolor                  # Цветные логи
+
+  tasks:
+  - name: Install Jenkins Plugins
+    community.general.jenkins_plugin:
+      name: "{{ item }}"
+      url: "{{ jenkins_url }}"
+      url_username: "{{ jenkins_username }}"
+      url_password: "{{ jenkins_admin_password }}"
+      state: present
+      timeout: 120  # ← ДОБАВЬ ТАЙМАУТ
+    loop: "{{ jenkins_plugins }}"
+    register: plugin_result
+    until: plugin_result is succeeded  # ← RETRY ДО УСПЕХА
+    retries: 3  # ← 3 ПОПЫТКИ
+    delay: 10   # ← ПАУЗА 10 СЕК МЕЖДУ ПОПЫТКАМИ
+    ignore_errors: yes  # ← НЕ ПАДАТЬ ЕСЛИ ОДИН ПЛАГИН НЕ ПОСТАВИЛСЯ
+
+  - name: Force Jenkins locale to English
+    lineinfile:
+      path: /etc/default/jenkins
+      regexp: '^JAVA_OPTS='
+      line: 'JAVA_OPTS="$JAVA_OPTS -Duser.language=en -Duser.region=US"'
+    notify:
+      - restart jenkins

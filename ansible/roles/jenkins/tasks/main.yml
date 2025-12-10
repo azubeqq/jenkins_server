@@ -90,16 +90,67 @@
     timeout: 300
 
 # Ставим плагины (теперь Jenkins уже пускает админа)
-- name: Install Jenkins plugins
-  community.general.jenkins_plugin:
-    name: "{{ item }}"
-    url: "{{ jenkins_url }}"
-    url_username: "{{ jenkins_username }}"
-    url_password: "{{ jenkins_admin_password }}"
-    state: present
-  loop: "{{ jenkins_plugins }}"
-  notify: restart jenkins
+#- name: Install Jenkins plugins
+#  community.general.jenkins_plugin:
+#    name: "{{ item }}"
+#    url: "{{ jenkins_url }}"
+#    url_username: "{{ jenkins_username }}"
+#    url_password: "{{ jenkins_admin_password }}"
+#    state: present
+#  loop: "{{ jenkins_plugins }}"
+#  notify: restart jenkins
 
-- name: Wait additional time for plugins to initialize
+# 2. Ждем, пока Jenkins "прогреется" и будет готов принимать запросы API
+# (Опционально, но помогает при нестабильности)
+- name: Give Jenkins an extra 10 seconds to stabilize
   ansible.builtin.pause:
-    seconds: 30        # ← Дай плагинам время загрузиться
+    seconds: 10
+  changed_when: false
+
+# Скачиваем Jenkins CLI
+- name: Download Jenkins CLI jar
+  ansible.builtin.get_url:
+    url: "{{ jenkins_url }}/jnlpJars/jenkins-cli.jar"
+    dest: /opt/jenkins-cli.jar
+    mode: '0644'
+  retries: 3
+  delay: 5
+
+# Ставим плагины через CLI
+- name: Install plugins via Jenkins CLI
+  ansible.builtin.shell: |
+    java -jar /opt/jenkins-cli.jar -s {{ jenkins_url }} \
+      -auth {{ jenkins_username }}:{{ jenkins_admin_password }} \
+      install-plugin {{ item }} || true
+  loop: "{{ jenkins_plugins }}"
+  args:
+    creates: /var/lib/jenkins/plugins/{{ item }}.jpi
+  register: cli_install
+
+# Проверяем были ли изменения
+- name: Check if any plugins were installed
+  ansible.builtin.set_fact:
+    plugins_installed: "{{ cli_install.results | selectattr('changed', 'equalto', true) | list | length > 0 }}"
+
+# Безопасный рестарт
+- name: Safe restart Jenkins after plugin installation
+  ansible.builtin.shell: |
+    java -jar /opt/jenkins-cli.jar -s {{ jenkins_url }} \
+      -auth {{ jenkins_username }}:{{ jenkins_admin_password }} \
+      safe-restart
+  when: plugins_installed | bool
+
+# Ждем пока Jenkins вернется
+- name: Wait for Jenkins to come back online
+  ansible.builtin.uri:
+    url: "{{ jenkins_url }}/api/json"
+    user: "{{ jenkins_username }}"
+    password: "{{ jenkins_admin_password }}"
+    force_basic_auth: yes
+    status_code: 200
+    timeout: 5
+  register: jenkins_back
+  until: jenkins_back.status == 200
+  retries: 60
+  delay: 5
+  when: plugins_installed | bool

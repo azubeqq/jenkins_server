@@ -1,3 +1,4 @@
+# ansible/roles/ansible/defaults/main.yml
 ---
 ansible_collections:
   - community.general
@@ -19,6 +20,7 @@ ansible_config:
     retry_files_enabled: false      # Не создавать .retry файлы
     stdout_callback: yaml           # Красивый вывод (или debug/json)
     callbacks_enabled: "profile_tasks, timer"  # Показывает время выполнения
+    callback_result_format: yaml
     
   privilege_escalation:
     become: true
@@ -30,3 +32,16 @@ ansible_config:
     pipelining: true                # Ускоряет выполнение
     ssh_args: "-o ControlMaster=auto -o ControlPersist=60s"  # Переиспользует SSH соединения
     control_path: "/tmp/ansible-ssh-%%h-%%p-%%r"
+
+# --- Настройки версий ---
+
+# Желаемая версия Python (должна быть доступна в dnf)
+target_python_version: "3.11"
+
+# Версия Ansible пакета (10.0.0+ = Core 2.17, 9.0.0+ = Core 2.16)
+ansible_pypi_version: "10.0.0"
+
+# --- Автоматическая генерация имен пакетов (обычно менять не надо) ---
+python_package_name: "python{{ target_python_version }}"       # python3.11
+python_pip_package_name: "python{{ target_python_version }}-pip" # python3.11-pip
+pip_executable: "pip{{ target_python_version }}"              # pip3.11
