@@ -1,0 +1,105 @@
+# ansible/roles/jenkins/tasks/main.yml
+---
+- name: Download Jenkins repository file
+  ansible.builtin.get_url:
+    url: "{{ jenkins_repo_url }}"
+    dest: "{{ jenkins_repo_path }}"
+    mode: '0644'
+
+- name: Import Jenkins GPG key
+  ansible.builtin.rpm_key:
+    state: present
+    key: "{{ jenkins_repo_key }}"
+
+- name: Install Java and Jenkins
+  ansible.builtin.dnf:
+    name:
+      - "{{ java_version }}"
+      - jenkins
+      - git
+    state: present
+
+- name: Stop Jenkins before first start
+  ansible.builtin.systemd:
+    name: jenkins
+    state: stopped
+    enabled: no
+  ignore_errors: yes
+
+- name: Disable Jenkins setup wizard completely
+  ansible.builtin.copy:
+    dest: /var/lib/jenkins/jenkins.install.UpgradeWizard.state
+    owner: jenkins
+    group: jenkins
+    mode: '0644'
+    content: "1"
+
+- name: Mark Jenkins as installed
+  ansible.builtin.copy:
+    dest: /var/lib/jenkins/jenkins.install.InstallUtil.lastExecVersion
+    owner: jenkins
+    group: jenkins
+    mode: '0644'
+    content: "1"
+
+- name: Create systemd override directory for Jenkins
+  ansible.builtin.file:
+    path: /etc/systemd/system/jenkins.service.d
+    state: directory
+    mode: '0755'
+
+- name: Disable Setup Wizard via systemd override
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/jenkins.service.d/override.conf
+    content: |
+      [Service]
+      Environment="JENKINS_JAVA_OPTS=-Djava.awt.headless=true -Djenkins.install.runSetupWizard=false"
+    mode: '0644'
+  notify: restart jenkins
+
+- name: Create init.groovy.d directory
+  ansible.builtin.file:
+    path: /var/lib/jenkins/init.groovy.d
+    state: directory
+    owner: jenkins
+    group: jenkins
+    mode: '0755'
+
+- name: Copy Script configure Admin User and Security via Groovy
+  ansible.builtin.template:
+    src: "01-basic-security.groovy.j2"
+    dest: "{{ jenkins_home }}/init.groovy.d/01-basic-security.groovy"
+    owner: "{{ jenkins_user }}"
+    group: "{{ jenkins_user }}"
+    mode: '0644'
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Start and Enable Jenkins
+  ansible.builtin.systemd:
+    name: jenkins
+    enabled: yes
+    state: started
+
+- name: Wait for Jenkins to start (check port 8080)
+  ansible.builtin.wait_for:
+    port: 8080
+    delay: 10
+    timeout: 300
+
+# Ставим плагины (теперь Jenkins уже пускает админа)
+- name: Install Jenkins plugins
+  community.general.jenkins_plugin:
+    name: "{{ item }}"
+    url: "{{ jenkins_url }}"
+    url_username: "{{ jenkins_username }}"
+    url_password: "{{ jenkins_admin_password }}"
+    state: present
+  loop: "{{ jenkins_plugins }}"
+  notify: restart jenkins
+
+- name: Wait additional time for plugins to initialize
+  ansible.builtin.pause:
+    seconds: 30        # ← Дай плагинам время загрузиться

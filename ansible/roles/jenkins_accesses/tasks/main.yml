@@ -1,0 +1,93 @@
+#ansible/roles/jenkins_ssh_key/tasks/main.yml
+---
+   
+- name: Create .ssh directory for Jenkins
+  ansible.builtin.file:
+    path: "{{ jenkins_ssh_dir }}"
+    state: directory
+    owner: "{{ jenkins_user }}"
+    group: "{{ jenkins_user }}"
+    mode: "0700"
+
+- name: Generate SSH key for Jenkins (if not exists)
+  command: >
+    ssh-keygen -t ed25519
+    -f {{ jenkins_private_key_path }}
+    -N ""
+  args:
+    creates: "{{ jenkins_private_key_path }}"
+  become: yes
+  become_user: "{{ jenkins_user }}"
+
+#- name: Brief pause to ensure key is fully written to disk before Groovy script sees it
+#  ansible.builtin.pause:
+#    seconds: 3
+
+- name: Ensure private key permissions
+  ansible.builtin.file:
+    path: "{{ jenkins_private_key_path }}"
+    owner: "{{ jenkins_user }}"
+    group: "{{ jenkins_user }}"
+    mode: "0600"
+
+- name: Ensure public key permissions
+  ansible.builtin.file:
+    path: "{{ jenkins_public_key_path }}"
+    owner: "{{ jenkins_user }}"
+    group: "{{ jenkins_user }}"
+    mode: "0644"
+
+- name: Create dir for Terraform keys
+  ansible.builtin.file:
+    path: "{{ jenkins_home }}/terraform_keys"
+    state: directory
+    owner: "{{ jenkins_user }}"
+    group: "{{ jenkins_user }}"
+    mode: "0755"
+
+- name: Copy public key to Jenkins terraform dir
+  ansible.builtin.copy:
+    src: "{{ jenkins_public_key_path }}"
+    dest: "{{ jenkins_home }}/terraform_keys/{{ jenkins_ssh_key_name }}.pub"
+    owner: "{{ jenkins_user }}"
+    group: "{{ jenkins_user }}"
+    mode: "0644"
+    remote_src: yes
+
+- name: Copy SSH Jenkins credentials groovy script
+  ansible.builtin.template:
+    src: "02-ssh-credentials.groovy.j2"
+    dest: "{{ jenkins_home }}/init.groovy.d/02-ssh-credentials.groovy"
+    owner: "{{ jenkins_user }}"
+    group: "{{ jenkins_user }}"
+    mode: "0644"
+
+- name: Create environment variables for DockerHub credentials
+  copy:
+    dest: "/etc/profile.d/dockerhub_env.sh"
+    content: |
+      export DOCKERHUB_USERNAME="{{ dockerhub_username }}"
+      export DOCKERHUB_TOKEN="{{ dockerhub_token }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Copy DockerHub credentials Groovy script
+  ansible.builtin.template:
+    src: "03-dockerhub-credentials.groovy.j2"
+    dest: "{{ jenkins_home }}/init.groovy.d/03-dockerhub-credentials.groovy"
+    owner: "{{ jenkins_user }}"
+    group: "{{ jenkins_user }}"
+    mode: "0644"
+
+# ФИНАЛЬНЫЙ РЕСТАРТ - выполнятся скрипты 02 и 03
+- name: Final Jenkins restart to apply credentials
+  ansible.builtin.systemd:
+    name: jenkins
+    state: restarted
+
+- name: Wait for Jenkins final startup
+  ansible.builtin.wait_for:
+    port: 8080
+    delay: 10
+    timeout: 300

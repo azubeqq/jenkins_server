@@ -1,0 +1,20 @@
+# --- roles/common/defaults/main.yml ---
+---
+# Пакеты для установки на всех серверах
+common_packages:
+  - wget      # Загрузка файлов
+  - htop      # Мониторинг процессов
+  - jq        # Парсинг JSON в shell
+  - git       # Система контроля версий
+  - tar
+  - python3
+  - python3-pip
+  - unzip
+  
+# Настройки timezone
+common_timezone: "UTC"
+# Базовая директория для всех сервисов
+base_dir: /home/ec2-user/services
+app_user: ec2-user
+
+install_docker: true

@@ -1,0 +1,40 @@
+#добавить в терраформ установку при поднятии апп_server
+
+resource "aws_key_pair" "jenkins" {
+  key_name   = "jenkins_ci_key"
+  public_key = file("/var/lib/jenkins/terraform_keys/jenkins_ci_key.pub")
+}
+
+#В Jenkinsfile используй:
+groovywithCredentials([usernamePassword(
+    credentialsId: 'dockerhub-credentials',
+    usernameVariable: 'DOCKER_USER',
+    passwordVariable: 'DOCKER_TOKEN'
+)]) {
+    sh '''
+        echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USER" --password-stdin
+        docker push azubeq/your-image:tag
+    '''
+}
+
+
+
+
+#============================
+Последовательность установки дженкинса при добавлении автоматизации
+
+install jenkins
+ |
+stop jenkins
+ |
+prepare dirs
+ |
+generate ssh key
+ |
+copy groovy scripts
+ |
+daemon-reload
+ |
+start jenkins  <-- ONLY HERE
+ |
+wait_for port 8080

@@ -1,0 +1,35 @@
+# ========================================
+# ФАЙЛ: playbooks/app_deploy.yml
+# ========================================
+# APP playbook - деплоит APP стек
+# ========================================
+---
+- name: Deploy Full Monitoring Stack
+  hosts: role_jenkins
+  become: true  # Выполнять с sudo
+ 
+  roles:
+    - role: swap
+      tags: [swap, setup]
+    
+    - role: common
+      tags: [common, setup]
+    
+    - role: jenkins
+      tags: [jenkins, setup]
+
+    - role: jenkins_accesses
+      tags: [jenkins_acceses, custom]
+
+    - role: ansible
+      tags: [ansible, setup]
+
+    - role: terraform
+      tags: [terraform, setup]
+
+  post_tasks:
+
+    - name: Show access URLs
+      ansible.builtin.debug:
+        msg:
+          - "Jenkins_URL:    http://{{ ansible_host }}:8080"

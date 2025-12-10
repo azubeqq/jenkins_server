@@ -1,0 +1,51 @@
+# --- roles/common/tasks/main.yml ---
+---
+# Задачи базовой настройки сервера
+
+# Обновляем все пакеты до последних версий
+- name: Update system packages
+  ansible.builtin.yum:
+    name: "*"
+    state: latest
+    update_cache: true
+
+# Устанавливаем базовые утилиты
+- name: Install common packages
+  ansible.builtin.yum:
+    name: "{{ common_packages }}"
+    state: present
+
+# Устанавливаем timezone (важно для логов)
+- name: Set timezone
+  ansible.builtin.timezone:
+    name: "{{ common_timezone }}"
+
+# Создаём базовую директорию для всех сервисов
+- name: Ensure base directory exists
+  ansible.builtin.file:
+    path: "{{ base_dir }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: '0755'
+
+- name: Install Docker (optional, if needed)
+  ansible.builtin.yum:
+    name:
+      - docker
+    state: present
+  when: install_docker | default(false)
+
+- name: Add jenkins user to docker group
+  ansible.builtin.user:
+    name: jenkins
+    groups: docker
+    append: yes
+  when: install_docker | default(false)
+
+- name: Start and enable Docker
+  ansible.builtin.systemd:
+    name: docker
+    state: started
+    enabled: yes
+  when: install_docker | default(false)

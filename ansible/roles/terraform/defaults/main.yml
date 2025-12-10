@@ -1,0 +1,6 @@
+---
+terraform_dependencies:
+  - yum-utils
+  - shadow-utils
+
+terraform_repo_url: "https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo"

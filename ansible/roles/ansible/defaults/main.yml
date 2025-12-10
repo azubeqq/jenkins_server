@@ -1,0 +1,32 @@
+---
+ansible_collections:
+  - community.general
+  - community.postgresql
+  - community.docker
+  - amazon.aws
+
+ansible_config_create: true
+ansible_config_path: "/etc/ansible/ansible.cfg"
+ansible_verify_installation: true
+
+ansible_config:
+  defaults:
+    host_key_checking: false
+    inventory: "/etc/ansible/hosts"
+    remote_user: "ec2-user"
+    gathering: "smart"              # Быстрее, кэширует facts
+    timeout: 30                     # Таймаут SSH соединения
+    retry_files_enabled: false      # Не создавать .retry файлы
+    stdout_callback: yaml           # Красивый вывод (или debug/json)
+    callbacks_enabled: "profile_tasks, timer"  # Показывает время выполнения
+    
+  privilege_escalation:
+    become: true
+    become_method: "sudo"
+    become_user: "root"
+    become_ask_pass: false
+  
+  ssh_connection:
+    pipelining: true                # Ускоряет выполнение
+    ssh_args: "-o ControlMaster=auto -o ControlPersist=60s"  # Переиспользует SSH соединения
+    control_path: "/tmp/ansible-ssh-%%h-%%p-%%r"

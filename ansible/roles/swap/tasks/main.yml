@@ -1,0 +1,42 @@
+---
+- name: Check if swap is already enabled
+  ansible.builtin.command: swapon --show
+  register: swap_status
+  changed_when: false
+
+- name: Create swap file if not exists
+  ansible.builtin.command: fallocate -l "{{ swap_file_size }}" /swapfile
+  when: swap_status.stdout == ""
+  register: fallocate_result
+  failed_when: false
+
+- name: Create swap with dd if fallocate failed
+  ansible.builtin.command: dd if=/dev/zero of=/swapfile bs=1M count="{{ count_swap_dd }}"
+  when: fallocate_result is failed
+
+- name: Fix swapfile permissions
+  ansible.builtin.file:
+    path: /swapfile
+    mode: "0600"
+  when: swap_status.stdout == ""
+
+- name: Format swapfile
+  ansible.builtin.command: mkswap /swapfile
+  when: swap_status.stdout == ""
+
+- name: Enable swap
+  ansible.builtin.command: swapon /swapfile
+  when: swap_status.stdout == ""
+
+- name: Persist swap in /etc/fstab
+  ansible.builtin.mount:
+    name: none
+    src: /swapfile
+    fstype: swap
+    opts: sw
+    state: present
+
+- name: Resize /tmp to 2G
+  ansible.builtin.command: mount -o remount,size=2G /tmp
+  ignore_errors: yes
+

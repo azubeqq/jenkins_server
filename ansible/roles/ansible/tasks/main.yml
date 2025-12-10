@@ -1,0 +1,56 @@
+# ansible/roles/ansible/tasks/main.yml
+---
+    # ========== ANSIBLE ==========
+# 2. Убеждаемся, что есть pip
+- name: Install python3-pip
+  ansible.builtin.dnf:
+    name: python3-pip
+    state: present
+
+# Установка Python библиотек
+- name: Install Python AWS libraries (boto3, botocore)
+  ansible.builtin.pip:
+    name:
+      - boto3
+      - botocore
+    executable: pip3
+    state: present
+
+# 3. Ставим свежайший Ansible через pip
+- name: Install latest Ansible via pip
+  ansible.builtin.pip:
+    name: ansible
+    state: latest
+    executable: pip3
+
+# Установка коллекций для jenkins
+- name: Install Ansible collections for jenkins user
+  ansible.builtin.command: ansible-galaxy collection install {{ item }} --force
+  loop: "{{ ansible_collections }}"
+  become: yes
+  become_user: jenkins  # ← ГЛАВНОЕ ИЗМЕНЕНИЕ!
+  register: galaxy_result
+  changed_when: "'was installed successfully' in galaxy_result.stdout"
+  failed_when:
+    - galaxy_result.rc != 0
+    - "'is already installed' not in galaxy_result.stderr"
+
+- name: Create Ansible configuration directory
+  ansible.builtin.file:
+    path: "{{ ansible_config_path | dirname }}"
+    state: directory
+    mode: '0755'
+  when: ansible_config_create
+
+- name: Deploy ansible.cfg from template
+  ansible.builtin.template:
+    src: ansible.cfg.j2
+    dest: "{{ ansible_config_path }}"
+    mode: '0644'
+  when: ansible_config_create
+
+- name: Verify Ansible installation
+  ansible.builtin.command: ansible --version
+  register: ansible_version_output
+  changed_when: false
+  when: ansible_verify_installation

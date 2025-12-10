@@ -1,0 +1,29 @@
+    # ========== TERRAFORM ==========
+    - name: Install Terraform dependencies
+      ansible.builtin.dnf:
+        name: "{{ terraform_dependencies }}"
+        state: present
+
+    - name: Check if HashiCorp repository exists
+      ansible.builtin.stat:
+        path: /etc/yum.repos.d/hashicorp.repo
+      register: hashicorp_repo
+
+    - name: Add HashiCorp repository
+      ansible.builtin.command: yum-config-manager --add-repo "{{ terraform_repo_url }}"      
+      when: not hashicorp_repo.stat.exists
+      changed_when: true
+
+    - name: Install Terraform
+      ansible.builtin.dnf:
+        name: terraform
+        state: present
+
+    - name: Verify Terraform installation
+      ansible.builtin.command: terraform --version
+      register: terraform_version
+      changed_when: false
+
+    - name: Display Terraform version
+      ansible.builtin.debug:
+        msg: "Installed: {{ terraform_version.stdout_lines[0] }}"

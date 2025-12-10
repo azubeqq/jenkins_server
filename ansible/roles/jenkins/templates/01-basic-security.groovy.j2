@@ -1,0 +1,24 @@
+#!groovy
+
+import jenkins.model.*
+import hudson.security.*
+import jenkins.install.InstallState
+   
+def instance = Jenkins.getInstance()
+      
+//  1. Создаем пользователя, если его нет
+def hudsonRealm = new HudsonPrivateSecurityRealm(false)
+def users = hudsonRealm.getAllUsers()
+def adminUser = users.find { it.id == "{{ jenkins_username }}" }
+      
+if (!adminUser) {
+    hudsonRealm.createAccount("{{ jenkins_username }}", "{{ jenkins_admin_password }}")
+    instance.setSecurityRealm(hudsonRealm)
+          
+    def strategy = new FullControlOnceLoggedInAuthorizationStrategy()
+    strategy.setAllowAnonymousRead(false)
+    instance.setAuthorizationStrategy(strategy)
+    instance.save()
+    instance.doReload()
+    println "Admin user created and security configured."
+}
